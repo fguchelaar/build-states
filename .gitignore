@@ -1,0 +1,6 @@
+config.h
+config.js
+
+node_modules/
+
+.vscode/
