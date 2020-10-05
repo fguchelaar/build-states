@@ -52,11 +52,14 @@ int selectedRectangle = -1;
 // background color of the display
 const uint16_t backgroundColor = ILI9341_BLACK;
 
-// the sceen does not seem to be perfectly calibrated, so we guestimate its bounds
+// the screen does not seem to be perfectly calibrated, so we guestimate its bounds
 const unsigned int minX = 350;
 const unsigned int maxX = 3775;
 const unsigned int minY = 330;
 const unsigned int maxY = 3260;
+
+// Store the names of the definitions in an array
+String names[rectanglesPerRow * rectanglesPerColumn];
 
 void setup()
 {
@@ -84,10 +87,8 @@ void setup()
   tft.setTextColor(ILI9341_WHITE);
   tft.setTextSize(4);
   tft.println(WiFi.localIP());
-
   delay(2500);
   tft.fillScreen(backgroundColor);
-
   refreshStates();
 }
 
@@ -154,14 +155,14 @@ void refreshStates()
   // put your main code here, to run repeatedly:
   if (WiFi.status() == WL_CONNECTED)
   {
-    StaticJsonDocument<500> root;
-
     HTTPClient http; //Object of class HTTPClient
     http.begin(proxyhost);
     int httpCode = http.GET();
 
     if (httpCode > 0)
     {
+      DynamicJsonDocument root(2048);
+//      StaticJsonDocument<1024> root;
       DeserializationError error = deserializeJson(root, http.getString());
 
       // Test if parsing succeeds.
@@ -174,15 +175,21 @@ void refreshStates()
         tft.setTextSize(4);
         tft.setTextColor(ILI9341_RED);
         tft.println("error");
+        tft.setTextSize(2);
+        tft.setTextColor(ILI9341_RED);
+        tft.println(error.c_str());
+        displayError(error.c_str());
         return;
       }
 
       uint16_t color = ILI9341_GREEN;
 
-      JsonArray offByOne = root["offByOne"];
-      for (int i = 0; i < offByOne.size(); i++)
+      for (int i = 0; i < root.size(); i++)
       {
-        String state = offByOne[i];
+        JsonObject pipeline = root[i];
+        String state = pipeline["s"];
+        String dName = pipeline["d"];
+        names[i] = dName;
 
         if (state.compareTo("FAILURE") == 0)
         {
@@ -192,9 +199,13 @@ void refreshStates()
         {
           color = ILI9341_BLUE;
         }
-        else
+        else if (state.compareTo("SUCCESS") == 0)
         {
           color = ILI9341_GREEN;
+        }        
+        else
+        {
+          color = ILI9341_PINK;
         }
 
         point p = getPoint(i);
@@ -203,6 +214,10 @@ void refreshStates()
       }
 
       displaySelection();
+    }
+    else 
+    {
+      displayError("Error in http-code");
     }
     http.end(); //Close connection
   }
@@ -217,7 +232,19 @@ void displaySelection()
     tft.setCursor(0, 300);
     tft.setTextColor(ILI9341_WHITE);
     tft.setTextSize(2);
-    tft.print("Selected: ");
-    tft.print(selectedRectangle);
+    tft.print(names[selectedRectangle]);
+  }
+}
+
+void displayError(String text)
+{
+  tft.fillRect(0, 300, width, 20, backgroundColor);
+
+  if (selectedRectangle != -1)
+  { 
+    tft.setCursor(0, 300);
+    tft.setTextColor(ILI9341_RED);
+    tft.setTextSize(2);
+    tft.print(text);
   }
 }

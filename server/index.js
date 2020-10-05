@@ -10,10 +10,18 @@ const app = express();
 
 app.use(cors());
 app.get('/', (req, res) => {
-  const proxy = new AzureProxy(config);
-  proxy.getLatestStates(20, (states) => {
-    res.json({ offByOne: states });
-  });
+  Promise.all(
+    config.map((c) => new AzureProxy(c).getLatestStates(1)),
+  )
+    .then((data) => {
+      const response = [];
+      for (const definition of data) {
+        for (const state of definition.states) {
+          response.push({ d: definition.pipeline, s: state });
+        }
+      }
+      res.json(response);
+    });
 });
 
 app.listen(port, () => {

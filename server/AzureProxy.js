@@ -9,7 +9,7 @@ function AzureProxy(options) {
   this.mode = options.mode;
 }
 
-AzureProxy.prototype.getLatestStates = function getLatestStates(numberOfBuilds, callback) {
+AzureProxy.prototype.getLatestStates = function getLatestStates(numberOfBuilds) {
   const api = this.mode === 'build' ? '/_apis/build/builds' : '/_apis/release/deployments';
   const queryString = this.mode === 'build' ? '?definitions=' : '?definitionId=';
 
@@ -22,23 +22,30 @@ AzureProxy.prototype.getLatestStates = function getLatestStates(numberOfBuilds, 
     `&maxBuildsPerDefinition=${numberOfBuilds}`,
   );
   const auth = `Basic ${Buffer.from(`${this.token}:`).toString('base64')}`;
-
-  fetch(requestUrl, {
-    headers: {
-      Authorization: auth,
-    },
-  })
-    .then((res) => res.json())
-    .then((json) => this.parseBuildResults(json))
-    .then((states) => callback(states))
-    .catch((err) => {
-      console.error(err);
-      callback('ERROR');
-    });
+  console.log(requestUrl);
+  return new Promise((resolve, reject) => {
+    fetch(requestUrl, {
+      headers: {
+        Authorization: auth,
+      },
+    })
+      .then((res) => res.json())
+      .then((json) => this.parseBuildResults(json))
+      .then((states) => resolve(states))
+      .catch((err) => {
+        reject(err);
+      });
+  });
 };
 
 AzureProxy.prototype.parseBuildResults = function parseBuildResults(json) {
-  const values = json.value.sort((a, b) => a.id - b.id);
+  const values = json.value.sort((a, b) => a.id - b.id).reverse();
+
+  // I'm gonna assume that every 'value' has the same definition, so we'll just
+  // get the details of the first one.
+  const pipeline = values.length === 0
+    ? `No recent builds for ${this.project}.${this.definitionId}`
+    : values[0].definition.name;
 
   if (this.mode === 'release') {
     const states = values.map((val) => {
@@ -53,7 +60,11 @@ AzureProxy.prototype.parseBuildResults = function parseBuildResults(json) {
       }
       return 'ERROR';
     });
-    return states;
+
+    return {
+      pipeline,
+      states,
+    };
   }
 
   const states = values.map((val) => {
@@ -75,7 +86,11 @@ AzureProxy.prototype.parseBuildResults = function parseBuildResults(json) {
     }
     return 'ERROR';
   });
-  return states;
+
+  return {
+    pipeline,
+    states,
+  };
 };
 
 module.exports = AzureProxy;
