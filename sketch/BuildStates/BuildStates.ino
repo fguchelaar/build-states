@@ -203,6 +203,10 @@ void refreshStates()
         {
           color = ILI9341_GREEN;
         }        
+        else if (state.compareTo("PARTIAL") == 0)
+        {
+          color = ILI9341_ORANGE;
+        }        
         else
         {
           color = ILI9341_PINK;
